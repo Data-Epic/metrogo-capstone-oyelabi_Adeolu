@@ -1,4 +1,4 @@
-from models import Fleet, EconomyVehicle, PremiumVehicle, ElectricVehicle
+from models import Fleet, EconomyVehicle, PremiumVehicle, ElectricVehicle, resolve_location, get_location_name
 from helpers import MetroGoException
 
 def main_menu():
@@ -12,9 +12,9 @@ def run():
     fleet = Fleet()
     
     try:
-        fleet.register_vehicle(EconomyVehicle("11111111111111111", "Toyota Camry", 2.50, (6.52, 3.37)))
-        fleet.register_vehicle(PremiumVehicle("22222222222222222", "Mercedes S-Class", 5.00, (6.55, 3.39)))
-        fleet.register_vehicle(ElectricVehicle("33333333333333333", "Tesla Model Y", 3.00, (6.50, 3.35), 85))
+        fleet.register_vehicle(EconomyVehicle("11111111111111111", "Toyota Camry", 2.50, "Bodija"))
+        fleet.register_vehicle(PremiumVehicle("22222222222222222", "Mercedes S-Class", 5.00, "Dugbe"))
+        fleet.register_vehicle(ElectricVehicle("33333333333333333", "Tesla Model Y", 3.00, "challenge", 85))
     except MetroGoException as e:
         print(f"Initialization seeding error: {e}")
 
@@ -28,17 +28,16 @@ def run():
                 vin = input("Enter 17-character alphanumeric VIN: ").strip()
                 model = input("Enter model name: ").strip()
                 base_rate = float(input("Enter base rate (e.g., 2.50): ").strip())
-                lat = float(input("Enter pickup Latitude (-90 to 90): ").strip())
-                lon = float(input("Enter pickup Longitude (-180 to 180): ").strip())
-                location = (lat, lon)
+                print("Available Ibadan Areas: Bodija, Dugbe, Challenge, Ring Road, Akobo, Basorun, Sango, UI, Samonda, Mokola, Apata, Oluyole, Eleiyele, Agodi Gate, Ojoo, Iwo Road")
+                location_input = input("Enter current location / area name (e.g., 'Bodija'): ").strip()
 
                 if v_type == "economy":
-                    vehicle = EconomyVehicle(vin, model, base_rate, location)
+                    vehicle = EconomyVehicle(vin, model, base_rate, location_input)
                 elif v_type == "premium":
-                    vehicle = PremiumVehicle(vin, model, base_rate, location)
+                    vehicle = PremiumVehicle(vin, model, base_rate, location_input)
                 elif v_type == "electric":
                     battery = int(input("Enter battery level (0-100): ").strip())
-                    vehicle = ElectricVehicle(vin, model, base_rate, location, battery)
+                    vehicle = ElectricVehicle(vin, model, base_rate, location_input, battery)
                 else:
                     print("Unknown vehicle type specified. Registration aborted.")
                     continue
@@ -56,37 +55,40 @@ def run():
                     print("-" * 88)
                     for v in vehicles:
                         v_class_name = v.__class__.__name__
-                        print(f"{v.vin:<20} | {v.model_name:<20} | {v_class_name:<18} | ${v.base_rate:<9.2f} | {str(v.current_location):<15}")
-
+                        location_display = get_location_name(v.current_location)
+                        print(f"{v.vin:<20} | {v.model_name:<20} | {v_class_name:<18} | ${v.base_rate:<9.2f} | {location_display:<15}")
             elif choice == "3":
-                print("\n--- Execute Polymorphic Dispatch Request ---")
-                lat = float(input("Enter passenger Latitude (-90 to 90): ").strip())
-                lon = float(input("Enter passenger Longitude (-180 to 180): ").strip())
-                distance = float(input("Enter trip distance in miles: ").strip())
-                surge = float(input("Enter surge multiplier (e.g., 1.0 for normal): ").strip())
-                
-                requires_prem = input("Requires premium vehicle? (y/n): ").strip().lower() == 'y'
-                min_bat_input = input("Minimum battery requirement for EVs (press Enter for default 20%): ").strip()
-                
-                trip_reqs = {
-                    "pickup_location": (lat, lon),
+                 print("\n--- Execute Polymorphic Dispatch Request ---")
+                 print("Available Ibadan Areas: Bodija, Dugbe, Challenge, Ring Road, Akobo, Basorun, Sango, UI, Samonda, Mokola, Apata, Oluyole, Eleiyele, Agodi Gate, Ojoo, Iwo Road")
+                 pickup_input = input("Enter passenger pickup area name or coordinates: ").strip()
+    
+                 pickup_location = resolve_location(pickup_input)
+
+                 distance = float(input("Enter trip distance in miles: ").strip())
+                 surge = float(input("Enter surge multiplier (e.g., 1.0 for normal): ").strip())
+    
+                 requires_prem = input("Requires premium vehicle? (y/n): ").strip().lower() == 'y'
+                 min_bat_input = input("Minimum battery requirement for EVs (press Enter for default 20%): ").strip()
+    
+                 trip_reqs = {
+                    "pickup_location": pickup_location,
                     "requires_premium": requires_prem,
                     "min_battery": int(min_bat_input) if min_bat_input else 20
                 }
+                 candidates = fleet.query_dispatchable_fleet(trip_reqs)
+                 best_vehicle = candidates[0] 
 
-                candidates = fleet.query_dispatchable_fleet(trip_reqs)
-                best_vehicle = candidates[0] 
-
-                fare = best_vehicle.calculate_fare(distance, surge)
-                print(f"\n[DISPATCH SUCCESS] Assigned Vehicle:")
-                print(f" - Model: {best_vehicle.model_name} ({best_vehicle.__class__.__name__})")
-                print(f" - VIN: {best_vehicle.vin}")
-                print(f" - Location: {best_vehicle.current_location}")
-                print(f" - Calculated Trip Fare: ${fare:.2f}")
-
+                 fare = best_vehicle.calculate_fare(distance, surge)
+                 print(f"\n[DISPATCH SUCCESS] Assigned Vehicle:")
+                 print(f" - Model: {best_vehicle.model_name} ({best_vehicle.__class__.__name__})")
+                 print(f" - VIN: {best_vehicle.vin}")
+                 print(f" - Location: {best_vehicle.current_location}")
+                 print(f" - Calculated Trip Fare: ${fare:.2f}")
+            
             elif choice == "4":
-                print("Exiting MetroGo. System Offline.")
-                break
+                 print("Exiting MetroGo. System Offline.")
+                 break
+
             else:
                 print("Invalid option selected. Please select a valid choice.")
 
@@ -96,6 +98,5 @@ def run():
             print("\n[INPUT ERROR] Please enter valid numeric formats for rates, coordinates, or distances.")
         except Exception as e:
             print(f"\n[CRITICAL ERROR] Unexpected failure in runtime stack: {e}")
-
 if __name__ == "__main__":
     run()

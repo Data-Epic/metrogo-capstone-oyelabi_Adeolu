@@ -6,6 +6,55 @@ from helpers import (
     DispatchFailureException
 )
 
+IBADAN_LOCATIONS = {
+    "bodija": (7.4211, 3.9015),
+    "dugbe": (7.3916, 3.8824),
+    "challenge": (7.3565, 3.8741),
+    "ring road": (7.3776, 3.8647),
+    "akobo": (7.4474, 3.9351),
+    "basorun": (7.4201, 3.9213),
+    "sango": (7.4278, 3.8965),
+    "ui": (7.4422, 3.8998),
+    "samonda": (7.4292, 3.8941),
+    "mokola": (7.4111, 3.8912),
+    "apata": (7.3321, 3.8342),
+    "oluyole": (7.3621, 3.8512),
+    "eleiyele": (7.4085, 3.8612),
+    "agodi gate": (7.4089, 3.9078),
+    "ojoo": (7.4785, 3.9125),
+    "iwo road": (7.4125, 3.9342),
+    "bodija market": (7.4305, 3.9056),
+    "bodija estate": (7.4255, 3.9088),
+    "bashorun": (7.4201, 3.9213),
+    "bodija extension": (7.4188, 3.9102)
+}
+
+def resolve_location(loc_input) -> tuple:
+    """Resolves a string area name or a raw coordinate tuple into standard coordinates."""
+    if isinstance(loc_input, tuple):
+        return loc_input
+    if isinstance(loc_input, str):
+        cleaned = loc_input.strip().lower()
+        if cleaned in IBADAN_LOCATIONS:
+            return IBADAN_LOCATIONS[cleaned]
+        elif "," in cleaned:
+            try:
+                parts = cleaned.split(",")
+                return (float(parts[0].strip()), float(parts[1].strip()))
+            except ValueError:
+                pass
+    raise InvalidLocationError(
+        f"Unknown location '{loc_input}'. Please choose from known areas like "
+        "Bodija, Dugbe, Challenge, Ring Road, Akobo, Basorun, Sango, UI, Samonda, Mokola, Apata, Oluyole, Eleiyele, Agodi Gate, Ojoo, Iwo Road.")
+
+def get_location_name(coords: tuple) -> str:
+    """Takes a coordinate tuple and returns the corresponding Ibadan area name if found."""
+    for name, lat_lon in IBADAN_LOCATIONS.items():
+        # Check coordinates with a tiny tolerance for floating-point safety
+        if abs(lat_lon[0] - coords[0]) < 0.0001 and abs(lat_lon[1] - coords[1]) < 0.0001:
+            return name.title() # Capitalizes the first letter (e.g., "Bodija")
+    return f"{coords}" # Fallback to showing coordinates if it doesn't match a preset
+
 class Vehicle(ABC):
 
     def __init__(self, vin: str, model_name: str, base_rate: float, location: tuple):
@@ -49,15 +98,19 @@ class Vehicle(ABC):
         return self._current_location
 
     @current_location.setter
-    def current_location(self, value: tuple):
-        if not isinstance(value, tuple) or len(value) != 2:
+    def current_location(self, value):
+        # Resolve string area names to coordinates automatically
+        resolved_value = resolve_location(value)
+        
+        if not isinstance(resolved_value, tuple) or len(resolved_value) != 2:
             raise InvalidLocationError("Location must be a tuple containing (latitude, longitude).")
-        lat, lon = value
+        lat, lon = resolved_value
         if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
             raise InvalidLocationError("Latitude and longitude must be numeric values.")
         if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
             raise InvalidLocationError(f"Latitude ({lat}) or Longitude ({lon}) out of bounds.")
-        self._current_location = value
+        self._current_location = resolved_value
+
 
     @abstractmethod
     def calculate_fare(self, distance_miles: float, surge_multiplier: float) -> float:
